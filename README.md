@@ -1,4 +1,4 @@
-# Windows Power Monitor / 主机用电监控
+﻿# Windows Power Monitor / 主机用电监控
 
 Windows 10+ PC hardware power monitor. It shows real-time estimated whole-PC wattage, tracks daily/monthly electricity usage, and includes a draggable floating wattage bubble.
 

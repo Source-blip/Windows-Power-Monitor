@@ -1,0 +1,7 @@
+﻿*.exe
+!release/HostPowerMonitor.exe
+!release/HostPowerMonitor_Setup.exe
+bin/
+obj/
+*.user
+*.suo
