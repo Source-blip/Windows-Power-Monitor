@@ -67,6 +67,7 @@ internal static class ModelSanityRunner
         failures += RunMemoryModelTests();
         failures += RunStorageModelTests();
         failures += RunSettingsModelTests();
+        failures += RunHighPowerAlertTests();
         failures += RunNumericSafetyTests();
         failures += RunMonitorLifecycleTests();
 
@@ -415,16 +416,33 @@ internal static class ModelSanityRunner
         AppSettings settings = new AppSettings();
         settings.MarginPercent = double.NaN;
         settings.ElectricityRate = double.PositiveInfinity;
+        settings.HighPowerThresholdWatts = double.NaN;
         settings.SampleSeconds = -5;
         settings.HistoryRetentionDays = 9999;
         settings.Normalize();
         failures += CheckDouble("settings-margin-nan", settings.MarginPercent, 15.0);
         failures += CheckDouble("settings-rate-infinity", settings.ElectricityRate, 0.60);
+        failures += CheckDouble("settings-alert-threshold-nan", settings.HighPowerThresholdWatts, 450.0);
         failures += CheckInt("settings-sample-min", settings.SampleSeconds, 1);
         failures += CheckInt("settings-retention-max", settings.HistoryRetentionDays, 365);
         failures += CheckDouble("safe-watts-nan", PowerEstimator.SafeWatts(double.NaN), 0);
         failures += CheckDouble("safe-watts-negative", PowerEstimator.SafeWatts(-12), 0);
         failures += CheckDouble("safe-watts-normal", PowerEstimator.SafeWatts(42.5), 42.5);
+        return failures;
+    }
+
+    private static int RunHighPowerAlertTests()
+    {
+        int failures = 0;
+        DateTime now = new DateTime(2026, 6, 11, 12, 0, 0);
+        failures += CheckBool("alert-disabled", HighPowerAlertPolicy.ShouldNotify(false, 600, 450, now, DateTime.MinValue, false, 10), false);
+        failures += CheckBool("alert-below-threshold", HighPowerAlertPolicy.ShouldNotify(true, 300, 450, now, DateTime.MinValue, false, 10), false);
+        failures += CheckBool("alert-first-hit", HighPowerAlertPolicy.ShouldNotify(true, 600, 450, now, DateTime.MinValue, false, 10), true);
+        failures += CheckBool("alert-already-high", HighPowerAlertPolicy.ShouldNotify(true, 600, 450, now, DateTime.MinValue, true, 10), false);
+        failures += CheckBool("alert-cooldown-active", HighPowerAlertPolicy.ShouldNotify(true, 600, 450, now, now.AddMinutes(-3), false, 10), false);
+        failures += CheckBool("alert-cooldown-expired", HighPowerAlertPolicy.ShouldNotify(true, 600, 450, now, now.AddMinutes(-11), false, 10), true);
+        failures += CheckBool("alert-high-state", HighPowerAlertPolicy.IsHighPowerState(410, 450), true);
+        failures += CheckBool("alert-low-state", HighPowerAlertPolicy.IsHighPowerState(390, 450), false);
         return failures;
     }
 

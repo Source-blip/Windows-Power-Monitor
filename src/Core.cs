@@ -88,6 +88,8 @@ namespace HostPowerMonitor
         public bool BubbleVisible = true;
         public double MarginPercent = 15.0;
         public double ElectricityRate = 0.60;
+        public bool HighPowerAlert = false;
+        public double HighPowerThresholdWatts = 450.0;
         public int SampleSeconds = 2;
         public int HistoryRetentionDays = 30;
         public int BubbleX = -1;
@@ -147,6 +149,8 @@ namespace HostPowerMonitor
                 lines.Add("BubbleVisible=" + BubbleVisible.ToString(CultureInfo.InvariantCulture));
                 lines.Add("MarginPercent=" + MarginPercent.ToString(CultureInfo.InvariantCulture));
                 lines.Add("ElectricityRate=" + ElectricityRate.ToString(CultureInfo.InvariantCulture));
+                lines.Add("HighPowerAlert=" + HighPowerAlert.ToString(CultureInfo.InvariantCulture));
+                lines.Add("HighPowerThresholdWatts=" + HighPowerThresholdWatts.ToString(CultureInfo.InvariantCulture));
                 lines.Add("SampleSeconds=" + SampleSeconds.ToString(CultureInfo.InvariantCulture));
                 lines.Add("HistoryRetentionDays=" + HistoryRetentionDays.ToString(CultureInfo.InvariantCulture));
                 lines.Add("BubbleX=" + BubbleX.ToString(CultureInfo.InvariantCulture));
@@ -196,6 +200,10 @@ namespace HostPowerMonitor
                 MarginPercent = doubleValue;
             else if (key.Equals("ElectricityRate", StringComparison.OrdinalIgnoreCase) && double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out doubleValue))
                 ElectricityRate = doubleValue;
+            else if (key.Equals("HighPowerAlert", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out boolValue))
+                HighPowerAlert = boolValue;
+            else if (key.Equals("HighPowerThresholdWatts", StringComparison.OrdinalIgnoreCase) && double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out doubleValue))
+                HighPowerThresholdWatts = doubleValue;
             else if (key.Equals("SampleSeconds", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out intValue))
                 SampleSeconds = intValue;
             else if (key.Equals("HistoryRetentionDays", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out intValue))
@@ -220,6 +228,12 @@ namespace HostPowerMonitor
                 ElectricityRate = 0;
             if (ElectricityRate > 5)
                 ElectricityRate = 5;
+            if (double.IsNaN(HighPowerThresholdWatts) || double.IsInfinity(HighPowerThresholdWatts))
+                HighPowerThresholdWatts = 450.0;
+            if (HighPowerThresholdWatts < 50)
+                HighPowerThresholdWatts = 50;
+            if (HighPowerThresholdWatts > 2000)
+                HighPowerThresholdWatts = 2000;
             if (SampleSeconds < 1)
                 SampleSeconds = 1;
             if (SampleSeconds > 10)
@@ -1701,6 +1715,35 @@ namespace HostPowerMonitor
             if (end <= effectiveStart)
                 return 0;
             return (end - effectiveStart).TotalSeconds;
+        }
+    }
+
+    internal static class HighPowerAlertPolicy
+    {
+        public static bool ShouldNotify(bool enabled, double watts, double thresholdWatts, DateTime now, DateTime lastNotification, bool alreadyInHighPowerState, double cooldownMinutes)
+        {
+            if (!enabled)
+                return false;
+            watts = PowerEstimator.SafeWatts(watts);
+            if (double.IsNaN(thresholdWatts) || double.IsInfinity(thresholdWatts) || thresholdWatts < 1)
+                return false;
+            if (watts < thresholdWatts)
+                return false;
+            if (alreadyInHighPowerState)
+                return false;
+            if (lastNotification == DateTime.MinValue)
+                return true;
+            if (now < lastNotification)
+                return true;
+            return (now - lastNotification).TotalMinutes >= Math.Max(1, cooldownMinutes);
+        }
+
+        public static bool IsHighPowerState(double watts, double thresholdWatts)
+        {
+            watts = PowerEstimator.SafeWatts(watts);
+            if (double.IsNaN(thresholdWatts) || double.IsInfinity(thresholdWatts) || thresholdWatts < 1)
+                return false;
+            return watts >= thresholdWatts * 0.90;
         }
     }
 

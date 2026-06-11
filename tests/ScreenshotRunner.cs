@@ -22,6 +22,8 @@ internal static class ScreenshotRunner
         settings.MarginPercent = 15;
         settings.ElectricityRate = 0.60;
         settings.BubbleVisible = true;
+        settings.HighPowerAlert = true;
+        settings.HighPowerThresholdWatts = 450;
         settings.BubbleX = 20;
         settings.BubbleY = 20;
 
@@ -38,15 +40,35 @@ internal static class ScreenshotRunner
 
         PowerSample sample = new PowerSample();
         sample.Timestamp = DateTime.Now;
+        sample.CpuWatts = 98;
+        sample.GpuWatts = 166;
+        sample.MemoryWatts = 24;
+        sample.StorageWatts = 18;
+        sample.PlatformWatts = 42;
+        sample.TotalBeforeMarginWatts = 348;
         sample.TotalWatts = 348;
         sample.TodayKWh = 0.10;
         sample.MonthKWh = 38.42;
         sample.TodayCost = sample.TodayKWh * settings.ElectricityRate;
         sample.MonthCost = sample.MonthKWh * settings.ElectricityRate;
         sample.Summary = "2 measured, 4 estimated";
+        sample.Components.Add(new ComponentPower { Name = "CPU", Watts = sample.CpuWatts, Source = PowerSourceKind.Measured });
+        sample.Components.Add(new ComponentPower { Name = "GPU", Watts = sample.GpuWatts, Source = PowerSourceKind.Measured });
+        sample.Components.Add(new ComponentPower { Name = "Memory", Watts = sample.MemoryWatts, Source = PowerSourceKind.Estimated });
+        sample.Components.Add(new ComponentPower { Name = "Storage", Watts = sample.StorageWatts, Source = PowerSourceKind.Estimated });
+        sample.Components.Add(new ComponentPower { Name = "Board", Watts = sample.PlatformWatts, Source = PowerSourceKind.Estimated });
 
         using (MainForm main = new MainForm(settings, inventory))
         {
+            for (int i = 0; i < 60; i++)
+            {
+                double trend = 120 + i * 4.2 + Math.Sin(i / 3.0) * 22;
+                if (i > 38)
+                    trend += (i - 38) * 3.8;
+                sample.TotalWatts = trend;
+                main.UpdateSample(sample);
+            }
+            sample.TotalWatts = 348;
             main.UpdateSample(sample);
             SaveControl(main, args[0]);
         }
