@@ -18,6 +18,7 @@ namespace HostPowerMonitor
         private readonly Label _maximizeButton;
         private readonly Label _closeButton;
         private readonly Label _currentPower;
+        private readonly Label _currentUnit;
         private readonly Label _powerCaption;
         private readonly Label _statusLine;
         private readonly Label _sourcePill;
@@ -33,6 +34,7 @@ namespace HostPowerMonitor
         private readonly Dictionary<string, ComponentRow> _componentRows = new Dictionary<string, ComponentRow>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Label> _sourceLabels = new Dictionary<string, Label>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, Label> _chartSegments = new Dictionary<int, Label>();
+        private readonly Dictionary<string, SidebarItem> _sidebarItems = new Dictionary<string, SidebarItem>(StringComparer.OrdinalIgnoreCase);
         private readonly ChartPanel _chart;
         private readonly Panel _settingsPanel;
         private QuickSettingItem _quickAutoStart;
@@ -96,8 +98,10 @@ namespace HostPowerMonitor
             _statusLine = new Label();
             _statusLine.Text = "实时监控中 · Windows 10+";
             _statusLine.ForeColor = Color.FromArgb(156, 166, 178);
-            _statusLine.AutoSize = true;
-            _statusLine.Location = new Point(248, 38);
+            _statusLine.AutoSize = false;
+            _statusLine.TextAlign = ContentAlignment.MiddleLeft;
+            _statusLine.Location = new Point(276, 36);
+            _statusLine.Size = new Size(380, 22);
             _root.Controls.Add(_statusLine);
             AttachWindowDrag(_statusLine);
 
@@ -109,12 +113,12 @@ namespace HostPowerMonitor
             sidebar.Size = new Size(170, 636);
             _root.Controls.Add(sidebar);
 
-            AddSidebarItem(sidebar, "⌂", "概览", true, 20);
-            AddSidebarItem(sidebar, "⌁", "功耗趋势", false, 72);
-            AddSidebarItem(sidebar, "▣", "组件详情", false, 124);
-            AddSidebarItem(sidebar, "◷", "用电统计", false, 176);
-            AddSidebarItem(sidebar, "$", "成本统计", false, 228);
-            AddSidebarItem(sidebar, "⚙", "设置", false, 280);
+            AddSidebarItem(sidebar, "overview", "⌂", "概览", true, 20, delegate { SelectSidebar("overview", false); });
+            AddSidebarItem(sidebar, "trend", "⌁", "功耗趋势", false, 72, delegate { SelectSidebar("trend", false); });
+            AddSidebarItem(sidebar, "components", "▣", "组件详情", false, 124, delegate { SelectSidebar("components", false); });
+            AddSidebarItem(sidebar, "usage", "◷", "用电统计", false, 176, delegate { SelectSidebar("usage", false); });
+            AddSidebarItem(sidebar, "cost", "$", "成本统计", false, 228, delegate { SelectSidebar("cost", false); });
+            AddSidebarItem(sidebar, "settings", "⚙", "设置", false, 280, delegate { SelectSidebar("settings", true); });
 
             RoundedPanel health = new RoundedPanel();
             health.BackColor = Color.FromArgb(20, 28, 38);
@@ -150,6 +154,7 @@ namespace HostPowerMonitor
             _settingsButton.Click += delegate { ToggleSettingsPanel(); };
             _settingsButton.MouseEnter += delegate { _settingsButton.BackColor = Color.FromArgb(33, 46, 60); };
             _settingsButton.MouseLeave += delegate { _settingsButton.BackColor = Color.FromArgb(21, 29, 39); };
+            _settingsButton.Visible = false;
             _root.Controls.Add(_settingsButton);
             _settingsButton.BringToFront();
             ToolTip tooltip = new ToolTip();
@@ -199,33 +204,33 @@ namespace HostPowerMonitor
 
             _currentPower = new Label();
             _currentPower.Text = "--";
-            _currentPower.Font = new Font(Font.FontFamily, 52F, FontStyle.Bold);
+            _currentPower.Font = new Font(Font.FontFamily, 48F, FontStyle.Bold);
             _currentPower.ForeColor = Color.FromArgb(245, 248, 252);
             _currentPower.AutoSize = false;
             _currentPower.TextAlign = ContentAlignment.MiddleLeft;
-            _currentPower.Location = new Point(24, 58);
-            _currentPower.Size = new Size(220, 78);
+            _currentPower.Location = new Point(24, 56);
+            _currentPower.Size = new Size(238, 72);
             hero.Controls.Add(_currentPower);
 
-            Label wattAccent = new Label();
-            wattAccent.Text = "W";
-            wattAccent.Font = new Font(Font.FontFamily, 34F, FontStyle.Bold);
-            wattAccent.ForeColor = Color.FromArgb(65, 151, 255);
-            wattAccent.AutoSize = true;
-            wattAccent.Location = new Point(244, 76);
-            hero.Controls.Add(wattAccent);
+            _currentUnit = new Label();
+            _currentUnit.Text = "W";
+            _currentUnit.Font = new Font(Font.FontFamily, 32F, FontStyle.Bold);
+            _currentUnit.ForeColor = Color.FromArgb(65, 151, 255);
+            _currentUnit.AutoSize = true;
+            _currentUnit.Location = new Point(244, 76);
+            hero.Controls.Add(_currentUnit);
 
-            BuildSourceStrip(hero, new Point(26, 136), new Size(496, 48));
+            BuildSourceStrip(hero, new Point(26, 142), new Size(496, 46));
 
             _confidenceText = new Label();
             _confidenceText.Text = "数据置信度  --";
             _confidenceText.ForeColor = Color.FromArgb(178, 188, 200);
             _confidenceText.AutoSize = true;
-            _confidenceText.Location = new Point(28, 194);
+            _confidenceText.Location = new Point(28, 198);
             hero.Controls.Add(_confidenceText);
 
             _confidenceBar = new MeterBar();
-            _confidenceBar.Location = new Point(142, 196);
+            _confidenceBar.Location = new Point(150, 201);
             _confidenceBar.Size = new Size(180, 8);
             _confidenceBar.FillColor = Color.FromArgb(68, 151, 255);
             hero.Controls.Add(_confidenceBar);
@@ -258,9 +263,9 @@ namespace HostPowerMonitor
             chartCard.BackColor = Color.FromArgb(18, 25, 34);
             chartCard.BorderColor = Color.FromArgb(42, 56, 70);
             chartCard.Radius = 10;
-            chartCard.Location = new Point(210, 338);
-            chartCard.Size = new Size(932, 184);
-            chartCard.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
+            chartCard.Location = new Point(210, 334);
+            chartCard.Size = new Size(932, 194);
+            chartCard.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             _root.Controls.Add(chartCard);
 
             Label chartTitle = new Label();
@@ -277,9 +282,9 @@ namespace HostPowerMonitor
             AddSegment(chartCard, "24小时", 24, 846);
 
             _chart = new ChartPanel();
-            _chart.Location = new Point(18, 50);
-            _chart.Size = new Size(896, 116);
-            _chart.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
+            _chart.Location = new Point(18, 52);
+            _chart.Size = new Size(896, 124);
+            _chart.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             chartCard.Controls.Add(_chart);
             SelectChartRange(_selectedChartHours);
 
@@ -342,6 +347,7 @@ namespace HostPowerMonitor
 
         public void ShowSettingsPanel()
         {
+            SelectSidebar("settings", false);
             _settingsPanel.Visible = true;
             _settingsPanel.BringToFront();
         }
@@ -355,6 +361,7 @@ namespace HostPowerMonitor
             }
 
             _currentPower.Text = FormatWattsNumber(sample.TotalWatts);
+            LayoutPowerReadout();
             _statusLine.Text = "整机实时功耗 · 每 " + _settings.SampleSeconds.ToString(CultureInfo.InvariantCulture) +
                                " 秒刷新 · 补偿 " + _settings.MarginPercent.ToString("0.#", CultureInfo.InvariantCulture) + "%";
             _todayKWh.Text = sample.TodayKWh.ToString("0.00", CultureInfo.InvariantCulture) + " 度";
@@ -421,7 +428,42 @@ namespace HostPowerMonitor
         {
             _settingsPanel.Visible = !_settingsPanel.Visible;
             if (_settingsPanel.Visible)
+            {
+                SelectSidebar("settings", false);
                 _settingsPanel.BringToFront();
+            }
+            else
+                SelectSidebar("overview", false);
+        }
+
+        private void SelectSidebar(string key, bool toggleSettings)
+        {
+            foreach (KeyValuePair<string, SidebarItem> item in _sidebarItems)
+                item.Value.SetSelected(item.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+
+            if (toggleSettings)
+            {
+                _settingsPanel.Visible = !_settingsPanel.Visible;
+                if (_settingsPanel.Visible)
+                    _settingsPanel.BringToFront();
+                else
+                    SelectSidebar("overview", false);
+                return;
+            }
+
+            if (!key.Equals("settings", StringComparison.OrdinalIgnoreCase))
+                _settingsPanel.Visible = false;
+        }
+
+        private void LayoutPowerReadout()
+        {
+            using (Graphics graphics = CreateGraphics())
+            {
+                Font font = _currentPower.Font;
+                float width = graphics.MeasureString(_currentPower.Text, font).Width;
+                int x = Math.Max(168, Math.Min(398, _currentPower.Left + (int)Math.Ceiling(width) + 12));
+                _currentUnit.Location = new Point(x, 77);
+            }
         }
 
         private void ToggleAutoStart()
@@ -503,8 +545,8 @@ namespace HostPowerMonitor
             _closeButton.Location = new Point(_root.ClientSize.Width - 58, 20);
             _maximizeButton.Location = new Point(_root.ClientSize.Width - 106, 20);
             _minimizeButton.Location = new Point(_root.ClientSize.Width - 154, 20);
-            _settingsButton.Location = new Point(_root.ClientSize.Width - 62, 88);
-            _settingsPanel.Location = new Point(Math.Max(12, ClientSize.Width - _settingsPanel.Width - 54), 132);
+            _settingsButton.Location = new Point(0, 0);
+            _settingsPanel.Location = new Point(204, 112);
         }
 
         private Label CreateWindowButton(string text)
@@ -522,7 +564,7 @@ namespace HostPowerMonitor
             return button;
         }
 
-        private void AddSidebarItem(Control parent, string icon, string text, bool selected, int y)
+        private void AddSidebarItem(Control parent, string key, string icon, string text, bool selected, int y, Action click)
         {
             RoundedPanel item = new RoundedPanel();
             item.BackColor = selected ? Color.FromArgb(36, 48, 62) : Color.FromArgb(17, 24, 33);
@@ -530,6 +572,7 @@ namespace HostPowerMonitor
             item.Radius = 8;
             item.Location = new Point(14, y);
             item.Size = new Size(142, 42);
+            item.Cursor = Cursors.Hand;
             parent.Controls.Add(item);
 
             Label iconLabel = new Label();
@@ -539,6 +582,7 @@ namespace HostPowerMonitor
             iconLabel.TextAlign = ContentAlignment.MiddleCenter;
             iconLabel.Location = new Point(10, 9);
             iconLabel.Size = new Size(22, 22);
+            iconLabel.Cursor = Cursors.Hand;
             item.Controls.Add(iconLabel);
 
             Label label = new Label();
@@ -547,7 +591,28 @@ namespace HostPowerMonitor
             label.ForeColor = selected ? Color.FromArgb(235, 241, 248) : Color.FromArgb(176, 185, 196);
             label.AutoSize = true;
             label.Location = new Point(42, 12);
+            label.Cursor = Cursors.Hand;
             item.Controls.Add(label);
+
+            EventHandler handler = delegate
+            {
+                if (click != null)
+                    click();
+            };
+            item.Click += handler;
+            iconLabel.Click += handler;
+            label.Click += handler;
+            item.MouseEnter += delegate
+            {
+                if (!_sidebarItems.ContainsKey(key) || !_sidebarItems[key].Selected)
+                    item.BackColor = Color.FromArgb(24, 34, 45);
+            };
+            item.MouseLeave += delegate
+            {
+                if (!_sidebarItems.ContainsKey(key) || !_sidebarItems[key].Selected)
+                    item.BackColor = Color.FromArgb(17, 24, 33);
+            };
+            _sidebarItems[key] = new SidebarItem(item, iconLabel, label, selected);
         }
 
         private Label AddSummaryMetric(Control parent, string icon, string title, string value, Color accent, Point location)
@@ -1093,6 +1158,33 @@ namespace HostPowerMonitor
                 Percent = percent;
                 Source = source;
                 Bar = bar;
+            }
+        }
+
+        private sealed class SidebarItem
+        {
+            private readonly RoundedPanel _panel;
+            private readonly Label _icon;
+            private readonly Label _label;
+
+            public bool Selected;
+
+            public SidebarItem(RoundedPanel panel, Label icon, Label label, bool selected)
+            {
+                _panel = panel;
+                _icon = icon;
+                _label = label;
+                SetSelected(selected);
+            }
+
+            public void SetSelected(bool selected)
+            {
+                Selected = selected;
+                _panel.BackColor = selected ? Color.FromArgb(36, 48, 62) : Color.FromArgb(17, 24, 33);
+                _panel.BorderColor = selected ? Color.FromArgb(47, 62, 79) : Color.FromArgb(17, 24, 33);
+                _icon.ForeColor = selected ? Color.FromArgb(79, 166, 255) : Color.FromArgb(150, 160, 172);
+                _label.ForeColor = selected ? Color.FromArgb(235, 241, 248) : Color.FromArgb(176, 185, 196);
+                _panel.Invalidate();
             }
         }
 
